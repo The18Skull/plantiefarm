@@ -1,3 +1,4 @@
+#include "DHT.h"
 #include <Servo.h>
 #include <SoftwareSerial.h> // for communication through hc06
 
@@ -33,12 +34,13 @@ class Kalman {
 
 // pins
 const byte restartButton = 2; // some button
+const byte tempSensor = 4; // dht11 temperature sensor
 const byte servoMotor = 5; // sg90 servo motor
 const byte bluetoothRX = 7; // hc06 bluetooth uart rx
 const byte bluetoothTX = 8; // hc06 bluetooth uart tx
-const byte lightSensor = A4; // some photoresistor (lm393 like?)
+const byte led = 13; // arduino's led
+const byte lightSensor = A4; // some mh-series photoresistor
 const byte waterSensor = A5; // some default arduino water sensor
-const byte tempSensor = A6; // lm35 temperature sensor
 
 // variables
 float lightIntersity = 0.0;
@@ -53,6 +55,9 @@ Kalman tempFilter(6.21, 0.05);
 // bluetooth
 SoftwareSerial BTSerial(bluetoothTX, bluetoothRX); // to arduino's rx and tx
 
+// dht11
+DHT dht(tempSensor, DHT11);
+
 // servo motor
 Servo waterSM;
 
@@ -61,13 +66,19 @@ void reset() { // reset parameters
   //BTSerial.write("AT+NAMEHC-06");
   //BTSerial.write("AT+AT+BAUD4");
   //BTSerial.write("AT+PIN0000");
+  for (int i = 0; i < 4; i++) { // double blink (kinda success)
+    delay(100);
+    digitalWrite(led, i % 2 == 0);
+  }
   delay(1000);
 }
 
 void setup() {
+  pinMode(restartButton, INPUT);
+  dht.begin();
   waterSM.attach(servoMotor);
   waterSM.write(servoState);
-  pinMode(restartButton, INPUT);
+  pinMode(led, OUTPUT);
   pinMode(lightSensor, INPUT);
   pinMode(waterSensor, INPUT);
   pinMode(tempSensor, INPUT);
@@ -78,8 +89,7 @@ void setup() {
   BTSerial.begin(9600);
 }
 
-void onMessage() { // recieve bluetooth message event
-  String msg = BTSerial.readString();
+void onMessage(String msg) { // recieve bluetooth message event
   Serial.print("[>] ");
   Serial.println(msg);
 
@@ -110,7 +120,7 @@ void onMessage() { // recieve bluetooth message event
 
 float getLight() { // get light state and illumination
   int raw = analogRead(lightSensor);
-  float conv = (float(raw) / 1023.0) * 100.0;
+  float conv = (1.0 - float(raw) / 1023.0) * 100.0;
   float res = lightFilter.filter(conv);
   return res;
 }
@@ -122,11 +132,22 @@ float getWater() { // get water level
 }
 
 float getTemp() { // get temperature
-  int raw = analogRead(tempSensor);
-  float conv = (float(raw) / 1023.0) * 5.0 * 1000.0 / 10.0;
-  float res = tempFilter.filter(conv);
+  float t = dht.readTemperature();
+  if (isnan(t)) {
+    t = -1000.0;
+  }
+  float res = tempFilter.filter(t);
   return res;
 }
+
+//float getHum() { // get humidity
+//  float h = dht.readHumidity();
+//  if (isnan(h)) {
+//    h = -1000.0;
+//  }
+//  float res = humFilter.filter(h);
+//  return res;
+//}
 
 void loop() {
   lightIntersity = getLight();
@@ -134,10 +155,12 @@ void loop() {
   temperature = getTemp();
 
   if (BTSerial.available()) {
-    onMessage();
+    String msg = BTSerial.readString();
+    onMessage(msg);
   }
   if (Serial.available()) {
-    BTSerial.write(Serial.read());
+    String msg = Serial.readString();
+    onMessage(msg);
   }
 
   delay(100);
