@@ -1,43 +1,14 @@
-#include "DHT.h"
-#include <Servo.h>
+#include "DHT.h" // for dht11 reading
+#include "kalman.cpp" // kalman's filter
+#include <Servo.h> // for servo motor control
 #include <SoftwareSerial.h> // for communication through hc06
-
-// easiest kalman's filter realization
-class Kalman {
-  private:
-    float deviation = 0.25;
-    float coeff = 0.05;
-    float pc = 0.0;
-    float g = 0.0;
-    float p = 1.0;
-    float xp = 0.0;
-    float zp = 0.0;
-    float xe = 0.0;
-  public:
-    Kalman() {
-      return;
-    }
-    Kalman(float dev, float c) {
-      this->deviation = dev;
-      this->coeff = c;
-    }
-    float filter(float val) {
-      this->pc = this->p + this->coeff;
-      this->g = this->pc / (this->pc + this->deviation);
-      this->p = (1.0 - this->g) * this->pc;
-      this->xp = this->xe;
-      this->zp = this->xp;
-      this->xe = this->g * (val - this->zp) + this->xp;
-      return this->xe;
-    }
-};
 
 // pins
 const byte restartButton = 2; // some button
 const byte tempSensor = 4; // dht11 temperature sensor
-const byte servoMotor = 5; // sg90 servo motor
-const byte bluetoothRX = 7; // hc06 bluetooth uart rx
-const byte bluetoothTX = 8; // hc06 bluetooth uart tx
+const byte servoMotor = 9; // sg90 servo motor
+const byte bluetoothTX = 10; // hc06 bluetooth tx
+const byte bluetoothRX = 11; // hc06 bluetooth rx
 const byte led = 13; // arduino's led
 const byte lightSensor = A4; // some mh-series photoresistor
 const byte waterSensor = A5; // some default arduino water sensor
@@ -46,11 +17,13 @@ const byte waterSensor = A5; // some default arduino water sensor
 float lightIntersity = 0.0;
 float waterLevel = 0.0;
 float temperature = 0.0;
+float humidity = 0.0;
 int servoState = 0;
 
 // filters
 Kalman lightFilter;
 Kalman tempFilter(6.21, 0.05);
+Kalman humFilter;
 
 // bluetooth
 SoftwareSerial BTSerial(bluetoothTX, bluetoothRX); // to arduino's rx and tx
@@ -62,15 +35,23 @@ DHT dht(tempSensor, DHT11);
 Servo waterSM;
 
 void reset() { // reset parameters
-  Serial.println("[!] Now restarting...");
-  //BTSerial.write("AT+NAMEHC-06");
-  //BTSerial.write("AT+AT+BAUD4");
-  //BTSerial.write("AT+PIN0000");
+  digitalWrite(led, HIGH); // light the light (kinda su mode)
+  Serial.println("[!] Resetting the settings...");
+  Serial.println("[!] Bluetooth pair must be disconnected (bt red light should blink)");
+
+  delay(1000); // wait for user to disconnect
+  BTSerial.print("AT+NAMEHC-06"); delay(1000); // restore name
+  BTSerial.print("AT+BAUD4"); delay(1000); // restore baud
+  BTSerial.print("AT+PIN0000"); delay(1000); // restore pin
+
+  servoState = 0; // reset servo motor
+  waterSM.write(servoState);
+
   for (int i = 0; i < 4; i++) { // double blink (kinda success)
-    delay(100);
-    digitalWrite(led, i % 2 == 0);
+    digitalWrite(led, i % 2);
+    delay(500);
   }
-  delay(1000);
+  digitalWrite(led, LOW);
 }
 
 void setup() {
@@ -82,18 +63,19 @@ void setup() {
   pinMode(lightSensor, INPUT);
   pinMode(waterSensor, INPUT);
   pinMode(tempSensor, INPUT);
-  attachInterrupt(digitalPinToInterrupt(restartButton), reset, FALLING);
 
   Serial.begin(9600);
-  Serial.println("[!] Arduino has started");
+  Serial.println("[!] SmartPot has started");
   BTSerial.begin(9600);
 }
 
 void onMessage(String msg) { // recieve bluetooth message event
+  msg.remove(msg.lastIndexOf('\n'));
   Serial.print("[>] ");
   Serial.println(msg);
+  msg.toLowerCase();
 
-  if (msg.compareTo(String("GET")) == 0) {
+  if (msg.startsWith("get")) {
     String ans;
     ans.concat("Light:");
     ans.concat(lightIntersity);
@@ -101,14 +83,26 @@ void onMessage(String msg) { // recieve bluetooth message event
     ans.concat(waterLevel);
     ans.concat("|Temp:");
     ans.concat(temperature);
+    ans.concat("|Hum:");
+    ans.concat(humidity);
 
-    char buf[100];
-    ans.toCharArray(buf, 100);
-    BTSerial.write(buf);
+    BTSerial.println(ans);
 
     Serial.print("[<] ");
     Serial.println(ans);
-  } else if (msg.startsWith(String("SET"))) {
+  } else if (msg.startsWith("setup")) {
+    String pin = msg.substring(5, 9); // 4-digit pin
+    int idx = msg.substring(9).toInt(); // any-digit index number
+
+    delay(1000); // wait for user to disconnect
+    BTSerial.print("AT+NAMESmartPot-"); BTSerial.print(idx); delay(1000);
+    BTSerial.print("AT+PIN"); BTSerial.print(pin); delay(1000);
+
+    Serial.print("[!] SmartPot was paired to the hub with index ");
+    Serial.print(idx);
+    Serial.print(" and password ");
+    Serial.println(pin);
+  } else if (msg.startsWith("set")) {
     servoState = msg.substring(3).toInt();
     servoState = 0 <= servoState && servoState <= 180 ? servoState : 0;
     waterSM.write(servoState);
@@ -140,19 +134,22 @@ float getTemp() { // get temperature
   return res;
 }
 
-//float getHum() { // get humidity
-//  float h = dht.readHumidity();
-//  if (isnan(h)) {
-//    h = -1000.0;
-//  }
-//  float res = humFilter.filter(h);
-//  return res;
-//}
+float getHum() { // get humidity
+  float h = dht.readHumidity();
+  if (isnan(h)) {
+    h = -1000.0;
+  }
+  float res = humFilter.filter(h);
+  return res;
+}
 
 void loop() {
   lightIntersity = getLight();
   waterLevel = getWater();
   temperature = getTemp();
+  humidity = getHum();
+
+  if (digitalRead(restartButton)) reset(); // check reset button state
 
   if (BTSerial.available()) {
     String msg = BTSerial.readString();
@@ -160,8 +157,12 @@ void loop() {
   }
   if (Serial.available()) {
     String msg = Serial.readString();
-    onMessage(msg);
+    if (msg.startsWith("AT")) { // only if unpaired
+      msg.remove(msg.indexOf('\n'));
+      BTSerial.print(msg);
+    }
+    else onMessage(msg);
   }
 
-  delay(100);
+  delay(1000);
 }
