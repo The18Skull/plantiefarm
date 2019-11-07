@@ -1,0 +1,65 @@
+wlan0     Scan completed :
+          Cell 01 - Address: 52:FF:20:5E:B0:D4
+                    Channel:3
+                    Frequency:2.422 GHz (Channel 3)
+                    Quality=57/70  Signal level=-53 dBm  
+                    Encryption key:on
+                    ESSID:"SkyStars"
+                    Bit Rates:1 Mb/s; 2 Mb/s; 5.5 Mb/s; 11 Mb/s; 9 Mb/s
+                              18 Mb/s; 36 Mb/s; 54 Mb/s
+                    Bit Rates:6 Mb/s; 12 Mb/s; 24 Mb/s; 48 Mb/s
+                    Mode:Master
+                    Extra:tsf=0000000000000000
+                    Extra: Last beacon: 70ms ago
+                    IE: Unknown: 0008536B795374617273
+                    IE: Unknown: 010882848B961224486C
+                    IE: Unknown: 030103
+                    IE: Unknown: 2A0104
+                    IE: Unknown: 32048C98B060
+                    IE: Unknown: 2D1AEF1917FFFF000001000000000000000000000000000000000000
+                    IE: Unknown: 3D1603050700000000000000000000000000000000000000
+                    IE: IEEE 802.11i/WPA2 Version 1
+                        Group Cipher : CCMP
+                        Pairwise Ciphers (1) : CCMP
+                        Authentication Suites (1) : PSK
+                    IE: Unknown: 7F080000080000000000
+                    IE: Unknown: 0B05050000127A
+                    IE: Unknown: DD180050F2020101000003A4000027A4000042435E0062322F00
+                    IE: Unknown: 46057200010000
+                    IE: Unknown: 330A0B010203040506070809
+                    IE: Unknown: 200103
+                    IE: Unknown: 23021A00
+                    IE: Unknown: 0706525520010914
+                    IE: Unknown: BF0CB101C033FAFF0C03FAFF0C03
+                    IE: Unknown: C005000000FAFF
+                    IE: Unknown: DD9D0050F204104A00011010440001021057000101103B00010310470010BC329E001DD811B2860152FF205EB0D41021000D4B65656E65746963204C74642E1023000447696761102400074B4E2D313031301042000D533139303357463030343833351054000800060050F2040001101100174B65656E65746963204769676120284B4E2D313031302910080002210C103C0001011049000600372A000120
+                    IE: Unknown: DD21000CE708000000BF0CB101C0332AFF92042AFF9204C0050000002AFFC303010202
+          Cell 02 - Address: C4:E9:84:28:32:A4
+                    Channel:11
+                    Frequency:2.462 GHz (Channel 11)
+                    Quality=23/70  Signal level=-87 dBm  
+                    Encryption key:on
+                    ESSID:"Sibset7"
+                    Bit Rates:1 Mb/s; 2 Mb/s; 5.5 Mb/s; 11 Mb/s; 6 Mb/s
+                              9 Mb/s; 12 Mb/s; 18 Mb/s
+                    Bit Rates:24 Mb/s; 36 Mb/s; 48 Mb/s; 54 Mb/s
+                    Mode:Master
+                    Extra:tsf=0000000000000000
+                    Extra: Last beacon: 70ms ago
+                    IE: Unknown: 000753696273657437
+                    IE: Unknown: 010882848B960C121824
+                    IE: Unknown: 03010B
+                    IE: Unknown: 2A0100
+                    IE: IEEE 802.11i/WPA2 Version 1
+                        Group Cipher : CCMP
+                        Pairwise Ciphers (1) : CCMP
+                        Authentication Suites (1) : PSK
+                    IE: Unknown: 32043048606C
+                    IE: Unknown: 2D1AEF111BFFFF000000000000000000008000000000000000000000
+                    IE: Unknown: 331AEF111BFFFF000000000000000000008000000000000000000000
+                    IE: Unknown: 3D160B070100000000000000000000000000000000000000
+                    IE: Unknown: 34160B070100000000000000000000000000000000000000
+                    IE: Unknown: DD180050F2020101830003A4000027A4000042435E0062322F00
+                    IE: Unknown: DD0900037F01010000FF7F
+                    IE: Unknown: DD990050F204104A0001101044000102103B00010310470010000102030405060708090A0B0C0D0E0F1021000754502D4C494E4B10230009544C2D57523834314E10240003392E3010420003312E301054000800060050F204000110110019576972656C65737320526F7574657220544C2D57523834314E100800020086103C000101104900140024E26002000101600000020001600100020001
+
