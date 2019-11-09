@@ -1,6 +1,6 @@
 #include "DHT.h" // for dht11 reading
 #include "kalman.cpp" // kalman's filter
-#include <Servo.h> // for servo motor control
+//#include <Servo.h> // for servo motor control
 #include <SoftwareSerial.h> // for communication through hc06
 
 // pins
@@ -18,7 +18,6 @@ float lightIntersity = 0.0;
 float waterLevel = 0.0;
 float temperature = 0.0;
 float humidity = 0.0;
-int servoState = 0;
 
 // filters
 Kalman lightFilter;
@@ -32,33 +31,63 @@ SoftwareSerial BTSerial(bluetoothTX, bluetoothRX); // to arduino's rx and tx
 DHT dht(tempSensor, DHT11);
 
 // servo motor
-Servo waterSM;
+//Servo waterSM;
 
-void reset() { // reset parameters
+void setServo(int pos) {
+  pos = 0 <= pos && pos <= 180 ? pos : 0;
+  int pulse = pos * int(1856 / 180) + 544;
+  for (int i = 0; i < 32; i++) {
+    digitalWrite(servoMotor, HIGH);
+    delayMicroseconds(pulse);
+    digitalWrite(servoMotor, LOW);
+    delay(20);
+  }
+  //waterSM.attach(servoMotor);
+  //waterSM.write(pos);
+  //delay(1000);
+  //waterSM.detach();
+
+  Serial.print("[!] Servo was set to ");
+  Serial.println(pos);
+}
+
+void set(String name, String pin) {
+  Serial.println("[!] Entering setting mode");
+  BTSerial.println("[!] Entering setting mode");
   digitalWrite(led, HIGH); // light the light (kinda su mode)
-  Serial.println("[!] Resetting the settings...");
-  Serial.println("[!] Bluetooth pair must be disconnected (bt red light should blink)");
 
   delay(1000); // wait for user to disconnect
-  BTSerial.print("AT+NAMEHC-06"); delay(1000); // restore name
-  BTSerial.print("AT+BAUD4"); delay(1000); // restore baud
-  BTSerial.print("AT+PIN0000"); delay(1000); // restore pin
+  BTSerial.print("AT+NAME"); BTSerial.print(name); delay(1000); // restore name
+  BTSerial.print("AT+PIN"); BTSerial.print(pin); delay(1000); // restore pin
 
-  servoState = 0; // reset servo motor
-  waterSM.write(servoState);
-
-  for (int i = 0; i < 4; i++) { // double blink (kinda success)
+  // double blink (kinda success)
+  for (int i = 0; i < 4; i++) {
     digitalWrite(led, i % 2);
     delay(500);
   }
   digitalWrite(led, LOW);
+  Serial.print("[!] Settings were changed to name: '");
+  Serial.print(name);
+  Serial.print("', pin: ");
+  Serial.println(pin);
+}
+
+void reset() { // reset parameters
+  Serial.println("[!] Resetting the settings...");
+  Serial.println("[!] Bluetooth pair must be disconnected (bt red light should blink)");
+
+  setServo(0);
+
+  // reset name and pin
+  String name = String("SmartPot");
+  String pin = String("0000");
+  set(name, pin);
 }
 
 void setup() {
   pinMode(restartButton, INPUT);
   dht.begin();
-  waterSM.attach(servoMotor);
-  waterSM.write(servoState);
+  setServo(0);
   pinMode(led, OUTPUT);
   pinMode(lightSensor, INPUT);
   pinMode(waterSensor, INPUT);
@@ -91,24 +120,15 @@ void onMessage(String msg) { // recieve bluetooth message event
     Serial.print("[<] ");
     Serial.println(ans);
   } else if (msg.startsWith("setup")) {
+    String name = String("SmartPot"); // custom name
+    name.concat(msg.substring(9));
     String pin = msg.substring(5, 9); // 4-digit pin
-    int idx = msg.substring(9).toInt(); // any-digit index number
+    set(name, pin); // set the settings
 
-    delay(1000); // wait for user to disconnect
-    BTSerial.print("AT+NAMESmartPot-"); BTSerial.print(idx); delay(1000);
-    BTSerial.print("AT+PIN"); BTSerial.print(pin); delay(1000);
-
-    Serial.print("[!] SmartPot was paired to the hub with index ");
-    Serial.print(idx);
-    Serial.print(" and password ");
-    Serial.println(pin);
+    Serial.println("[!] SmartPot was paired to the hub");
   } else if (msg.startsWith("set")) {
-    servoState = msg.substring(3).toInt();
-    servoState = 0 <= servoState && servoState <= 180 ? servoState : 0;
-    waterSM.write(servoState);
-
-    Serial.print("[!] Servo was set to ");
-    Serial.println(servoState);
+    int servoPos = msg.substring(3).toInt(); // parse degree
+    setServo(servoPos);
   }
 }
 
