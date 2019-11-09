@@ -1,8 +1,7 @@
 import re
 from time import sleep
-from commands import run
-from logger import Logger
-from utils import singleton
+from Commands import run
+from Logger import Logger, singleton
 
 @singleton
 class WiFiCtl:
@@ -10,9 +9,6 @@ class WiFiCtl:
 		self.pattern = re.compile(r"Cell \d+ - Address: (?P<mac>(?:[0-9a-f]{2}:?){6}).+?ESSID:\"(?P<name>.+?)\"", flags=re.I | re.S)
 		with open("network", "r") as f:
 			self.template = f.read()
-
-	def __del__(self):
-		self.disconnect()
 
 	def check(self):
 		out = run("ifconfig")

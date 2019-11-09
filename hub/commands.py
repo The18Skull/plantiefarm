@@ -28,10 +28,10 @@ class InteractiveCommand(Popen):
 		self.close()
 
 	def close(self):
-		self.stop()
-		self.fin.close()
-		self.fout.close()
 		self.terminate()
+
+	def flush(self):
+		_ = self.read()
 
 	def read(self):
 		out = self.fin.read()

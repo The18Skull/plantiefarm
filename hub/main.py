@@ -1,169 +1,220 @@
-from time import sleep
-from logger import Logger
+from cbor2 import dumps
+from Logger import Logger
+from time import time, sleep
 from HubController import Hub
+from Events import Refresh, Water
 from WiFiController import WiFiCtl
-from datetime import datetime as dt
 from BluetoothController import BTCtl
-from flask import Flask, send_from_directory, request, abort, jsonify
+from flask import Flask, send_from_directory, render_template, request, jsonify
 
-App = Flask(__name__, static_folder="static")
+App = Flask(__name__, static_folder="static", template_folder="static")
 
-def comment():
-	"""
-	@App.route("/")
-	def send_main():
-		return send_file("index.html")
+class MethodParam:
+	def __init__(self, name, type, desc):
+		self.name = name
+		self.type = type
+		self.desc = desc
 
-	@App.route("/<path:filename>")
-	def send_file(filename):
-		return send_from_directory(App.static_folder, filename)
+class HTTPMethod:
+	def __init__(self, method, url, desc, params):
+		self.method = method
+		self.url = url
+		self.small_desc = desc.split(".")[0]
+		self.big_desc = desc
+		self.params = params
 
-	@App.route("/uploads/<path:filename>")
-	def send_uploaded(filename):
-		return send_from_directory("uploads", filename)
+doc_methods = {
+	"Device": [
+		HTTPMethod("GET", "/api/scan", "Scan for SmartPot devices. Returns a dictionary of devices with key as device's MAC address and value as device's name. It takes 10 seconds to scan.", []),
+		HTTPMethod("GET", "/api/devices", "List connected devices. Returns a dictionary of devices with key as ID and value as device's MAC address.", []),
+		HTTPMethod("POST", "/api/device/add", "Add a new SmartPot device.", [ MethodParam("mac", "string", "Device's MAC address.") ]),
+		HTTPMethod("GET", "/api/device/get", "Get sensor's values from a device.", [ MethodParam("mac", "string", "Device's MAC address.") ]),
+		HTTPMethod("GET", "/api/device/refresh", "Refresh sensor's values for a device.", [ MethodParam("mac", "string", "Device's MAC address.") ]),
+		HTTPMethod("GET", "/api/device/water", "Water a plant of device.", [ MethodParam("mac", "string", "Device's MAC address.") ])
+	],
+	"Event": [
+		HTTPMethod("GET", "/api/events", "List planned events. Returns an array of events where each event is a dictionary with fields 'mac', 'type', 'time', 'repeat'.", []),
+		HTTPMethod("POST", "/api/event/add", "Add an event.", [
+			MethodParam("mac", "string", "Device's MAC address."),
+			MethodParam("type", "string", "Event's type. Must be either 'refresh' or 'water'."),
+			MethodParam("time", "number", "Unix timestamp UTC time to execute an event."),
+			MethodParam("repeat", "number", "Unix timestamp UTC time to add after completion of the event. Can be omitted.")
+		])
+	]
+}
 
-	@App.route("/upload", methods=[ "POST" ])
-	def upload():
-		fl = request.files["file"]
-		ext = fl.filename.split(".")[-1]
-		resource = request.form["resource"]
-		if resource in [ "Scopus", "Web of Science" ] and ext in [ "txt", "docx" ]:
-			index = len(listdir("./uploads")) # file counter
-			filepath = "./uploads/%d.%s" % (index, ext)
-			fl.save(filepath)
-			res = { "id": index }
-			if ext == "txt":
-				with open(filepath, "r") as f:
-					text = f.read()
-			elif ext == "docx":
-				text = word2txt().convert(filepath)
-			t0 = time.time()
-			if resource == "Web of Science":
-				res["result"] = sciparser.WoS().parse(text)
-			else: # resource == "Scopus"
-				res["result"] = sciparser.Scopus().parse(text)
-			for (i, article) in enumerate(res["result"]):
-				year = re.search(r"\d{4}", article["source"]["date"])
-				if year:
-					article["date"] = year[0]
-				journal = g.db.findJournal(article["source"]["title"])
-				print("[V]" if journal["id"] else "[X]", article["source"]["title"], "|", journal["title"]) # debug
-				article["source"]["id"] = journal["id"]
-				article["source"]["title"] = journal["title"]
-				article["country"] = journal["country"]
-				if not g.db.saveArticle(index, article, fl.filename, resource):
-					del res["result"][i]
-			res["resource"] = resource
-			res["time"] = time.time() - t0
-			res["status"] = "success"
-			print("[!] Completed in %f sec." % res["time"]) # log but mostly debug
-			return jsonify(res)
+@App.route("/")
+def send_main():
+	return render_template("index.html", methods=doc_methods)
+
+@App.route("/manual")
+def send_manual():
+	manual = request.args["manual"].capitalize() if "manual" in request.args else "Device"
+	page = int(request.args["page"]) if "page" in request.args else 0
+
+	method = doc_methods[manual][page]
+	return render_template("manual.html", method=method)
+
+@App.route("/<path:filename>")
+def send_file(filename):
+	return send_from_directory(App.static_folder, filename)
+
+@App.route("/api/device/add", methods=[ "POST" ])
+def device_add():
+	res = { "status": None, "msg": None }
+	mac = request.args["mac"] if "mac" in request.args else ""
+
+	if mac:
+		dev = Hub().findDevice(mac)
+		if dev is None:
+			try:
+				res["status"] = Hub().addDevice(mac)
+				res["msg"] = "OK"
+			except Exception:
+				res["status"] = False
+				res["msg"] = "Failed to add device"
 		else:
-			abort(400)
+			res["status"] = False
+			res["msg"] = "Device is already paired"
+	else:
+		res["status"] = False
+		res["msg"] = "Mac address is required"
 
-	@App.route("/approve", methods=[ "POST" ])
-	def approve():
-		if request.is_json:
-			id = request.json["id"]
-			articles = request.json["articles"]
-			for (key, value) in articles.items():
-				g.db.approveArticle(id, key, value)
-			return "success"
-		abort(400)
+	return jsonify(res)
 
-	@App.route("/api/approved", methods=[ "GET" ])
-	def get_approved():
-		start = 0
-		if "start" in request.args:
-			start = request.args["start"]
-		res = g.db.getApproved(start)
-		return jsonify(res)
+@App.route("/api/device/get", methods=[ "GET" ])
+def device_get():
+	res = { "status": None, "msg": None }
+	mac = request.args["mac"] if "mac" in request.args else ""
 
-	@App.route("/api/faculties", methods=[ "GET" ])
-	def get_faculties():
-		res = [ [ "РЭФ", "ФТФ" ], [ "МТФ", "ФЛА" ], [ "МТФ", "ФТФ" ] ]
-		return jsonify(res)
+	dev = Hub().findDevice(mac)
+	if dev is not None:
+		data = dev["sensors"]
 
-	@App.route("/api/resources", methods=[ "GET" ])
-	def get_resources():
-		# Beautiful title: RegExp
-		res = {
-			"Web of Science": "wos|web|science",
-			"Scopus": "scop?u?s?"
-		}
-		return jsonify(res)
+		res["status"] = True
+		res["msg"] = data if res["status"] else "Failed to add an event"
+	else:
+		res["status"] = False
+		res["msg"] = "There is no such device"
 
-	@App.route("/api/staff", methods=[ "GET" ])
-	def get_staff():
-		res = list()
-		if "search" in request.args:
-			res = g.db.findStaff(request.args["search"].lower())
-		return jsonify(res)
+	return jsonify(res)
 
-	@App.route("/api/staff", methods=[ "POST" ])
-	def add_staff():
-		staff = None
-		if len(request.args) != 0:
-			staff = request.args
-		elif len(request.form) != 0:
-			staff = request.form
-		elif request.is_json:
-			staff = request.json
-		if staff is not None:
-			if type(staff) != list:
-				staff = [ staff ]
-			res = g.db.addStaff(staff)
-			return jsonify(res)
-		abort(400)
+@App.route("/api/device/refresh", methods=[ "GET" ])
+def device_refresh():
+	res = { "status": None, "msg": None }
+	mac = request.args["mac"] if "mac" in request.args else ""
 
-	@App.route("/api/editstaff", methods=[ "POST" ])
-	def edit_staff():
-		staff = None
-		if len(request.args) != 0:
-			staff = request.args
-		elif len(request.form) != 0:
-			staff = request.form
-		elif request.is_json:
-			staff = request.json
-		if staff is not None:
-			if type(staff) != list:
-				staff = [ staff ]
-			res = g.db.editStaff(staff)
-			return jsonify(res)
-		abort(400)
+	dev = Hub().findDevice(mac)
+	if dev is not None:
+		t = 0
+		ev = Refresh(dev, t)
 
-	@App.route("/api/journals", methods=[ "POST" ])
-	def add_journals():
-		journals = None
-		if len(request.args) != 0:
-			journals = request.args
-		elif len(request.form) != 0:
-			journals = request.form
-		elif request.is_json:
-			journals = request.json
-		if journals is not None:
-			if type(journals) != list:
-				journals = [ journals ]
-			res = g.db.addJournals(journals)
-			return jsonify(res)
-		abort(400)
+		res["status"] = Hub().addEvent(ev)
+		res["msg"] = "OK" if res["status"] else "Failed to add event"
+	else:
+		res["status"] = False
+		res["msg"] = "There is no such device"
 
-	@App.route("/api/translit", methods=[ "GET" ])
-	def transliterate():
-		if "string" in request.args:
-			res = { "string": request.args["string"] }
-			res["result"] = translit.encode(res["string"])
-			return jsonify(res)
-		abort(400)
-	"""
+	return jsonify(res)
+
+@App.route("/api/device/water", methods=[ "GET" ])
+def device_water():
+	res = { "status": None, "msg": None }
+	mac = request.args["mac"] if "mac" in request.args else ""
+
+	dev = Hub().findDevice(mac)
+	if dev is not None:
+		t = 0
+		ev = Water(dev, t)
+
+		res["status"] = Hub().addEvent(ev)
+		res["msg"] = "OK" if res["status"] else "Failed to add event"
+	else:
+		res["status"] = False
+		res["msg"] = "There is no such device"
+
+	return jsonify(res)
+
+@App.route("/api/event/add", methods=[ "POST" ])
+def event_add():
+	res = { "status": None, "msg": None }
+	mac = request.args["mac"] if "mac" in request.args else ""
+	ev = request.args["type"].lower() if "type" in request.args else ""
+	t = int(request.args["time"]) if "time" in request.args else 0
+	repeat = int(request.args["repeat"]) if "repeat" in request.args else None
+
+	dev = Hub().findDevice(mac)
+	if dev is not None:
+		if ev in ("refresh","water"):
+			obj = Refresh if ev == "refresh" else Water
+			ev = obj(dev, t, repeat)
+
+			res["status"] = Hub().addEvent(ev)
+			res["msg"] = "OK" if res["status"] else "Failed to add event"
+		else:
+			res["status"] = False
+			res["msg"] = "Event type must be either 'refresh' or 'water'"
+	else:
+		res["status"] = False
+		res["msg"] = "There is no such device"
+
+	return jsonify(res)
+
+@App.route("/api/devices", methods=[ "GET" ])
+def devices():
+	res = { "status": None, "msg": None }
+	devices = Hub().devices
+
+	res["status"] = True
+	res["msg"] = { x["id"]: x["mac"] for x in devices }
+
+	return jsonify(res)
+
+@App.route("/api/events", methods=[ "GET" ])
+def events():
+	res = { "status": None, "msg": None }
+	events = Hub().events
+
+	res["status"] = True
+	res["msg"] = [ {
+		"mac": x["dev"]["mac"],
+		"type": x.__class__.__name__.lower(),
+		"time": x["time"],
+		"repeat": x["repeat"]
+	} for x in events ]
+
+	return jsonify(res)
+
+@App.route("/api/scan", methods=[ "GET" ])
+def scan():
+	res = { "status": None, "msg": None }
+	BT = BTCtl()
+
+	try:
+		res["status"] = True
+		res["msg"] = BT.scan()
+	except Exception:
+		res["status"] = False
+		res["msg"] = "Failed to scan for bluetooth devices"
+
+	return jsonify(res)
 
 if __name__ == "__main__":
-	while WiFiCtl().check() is False:
-		BT = BTCtl()
-		BT.accept(); BT.listen()
-		data = BT.recv()
+	BT = BTCtl()
+	WF = WiFiCtl()
+
+	while WF.check() is False:
+		sock = BT.accept()
+		networks = WF.scan()
+		data = dumps(networks)
+		sock.send(data)
+
+		data = sock.recv(128)
 		name, password = data.split(":")
+		sock.close()
+
 		WiFiCtl().connect(name, password)
 		sleep(1)
-	Hub().run()
-	App.run()
+
+	Hub().start()
+	App.run(host="0.0.0.0")

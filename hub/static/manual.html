@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>SmartHub API</title>
+		<link rel="stylesheet" href="style.css">
+	</head>
+	<body>
+		<div class="container">
+			<h1><a href="/">&lt;&lt;</a> {{ method.method }} {{ method.url }}</h1>
+			<p>{{ method.big_desc }}</p>
+			<hr/>
+			<h2>Parameters</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Type</th>
+						<th>Description</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for par in method.params %}
+					<tr>
+						<td>{{ par.name }}</td>
+						<td>{{ par.type }}</td>
+						<td>{{ par.desc }}</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+			<h2>Response</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Type</th>
+						<th>Description</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td>status</td>
+						<td>bool</td>
+						<td>Success flag.</td>
+					</tr>
+					<tr>
+						<td>msg</td>
+						<td>object</td>
+						<td>Returnable object or error if status is <i>False</i>.</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</body>
+</html>

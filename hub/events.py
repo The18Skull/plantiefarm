@@ -1,36 +1,60 @@
-from time import sleep
+from Logger import Logger
+from threading import Thread
+from time import time, sleep
 from datetime import datetime as dt
 
 class Event:
-	def __init__(self, dev, time, repeat=None):
+	def __init__(self, dev, time=0, repeat=None):
 		self.dev = dev # device
-		self.time = time # datetime
-		self.repeat = repeat # timedelta
+		self.time = int(time) # unix timestamp
+		self.repeat = repeat # unix timestamp
+		self.started = False
+
+	def __getitem__(self, key):
+		return self.__dict__[key]
 
 	def __str__(self):
-		return "%s event on %s" % (self.__class__.__name__, self.time)
+		n = self.__class__.__name__
+		t = dt.fromtimestamp(self.time)
+		d = str(self.dev)
+		return "%s event on %s for %s" % (n, t, d)
 
 	def exec(self):
-		now = dt.now()
-		if now >= self.time:
-			self.dev.connect()
-			self.func()
-			self.dev.close()
-			self.time = now + self.repeat
+		now = time() # get current unix timestamp
+		if now >= self.time and self.started is False:
+			Logger().write("[!] %s is starting" % str(self))
+			self.started = True
+
+			Thread(target=self.threadFunc).start()
+
+			if self.repeat is not None:
+				self.time += int(self.repeat)
+
 			return self
-		return None
 
 	def func(self):
 		pass
 
-class Receive(Event):
+	def threadFunc(self):
+		self.dev.connect()
+		self.func()
+		self.dev.close()
+		self.started = False
+		Logger().write("[!] %s was finished" % str(self))
+
+class Refresh(Event):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 
 	def func(self):
 		self.dev.send("get")
 		out = self.dev.recv()
-		res = { key: float(value) for key, value in x.split(":") for x in out.lower().split("|") }
+
+		res = {}
+		for x in out.lower().split("|"):
+			key, value = x.split(":")
+			res[key] = float(value)
+	
 		self.dev.sensors.update(res)
 
 class Water(Event):

@@ -1,4 +1,15 @@
-from utils import singleton
+def singleton(cls):
+	instances = {}
+
+	def getinstance(*args, **kwargs):
+		name = args[0] if len(args) != 0 else "None"
+		if cls not in instances:
+			instances[cls] = {}
+		if name not in instances[cls]:
+			instances[cls][name] = cls()
+		return instances[cls][name]
+
+	return getinstance
 
 @singleton
 class Logger:
