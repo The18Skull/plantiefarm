@@ -121,7 +121,7 @@ void onMessage(String msg) { // recieve bluetooth message event
     Serial.println(ans);
   } else if (msg.startsWith("setup")) {
     String name = String("SmartPot"); // custom name
-    name.concat(msg.substring(9));
+    //name.concat(msg.substring(9));
     String pin = msg.substring(5, 9); // 4-digit pin
     set(name, pin); // set the settings
 
