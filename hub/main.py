@@ -27,7 +27,7 @@ doc_methods = {
 	"Device": [
 		HTTPMethod("GET", "/api/scan", "Scan for SmartPot devices. Returns a dictionary of devices with key as device's MAC address and value as device's name. It takes 10 seconds to scan.", []),
 		HTTPMethod("GET", "/api/devices", "List connected devices. Returns a dictionary of devices with key as ID and value as device's MAC address.", []),
-		HTTPMethod("POST", "/api/device/add", "Add a new SmartPot device.", [ MethodParam("id", "number", "Device's ID.") ]),
+		HTTPMethod("POST", "/api/device/add", "Add a new SmartPot device.", [ MethodParam("mac", "string", "Device's MAC address.") ]),
 		HTTPMethod("GET", "/api/device/get", "Get sensor's values from a device.", [ MethodParam("id", "number", "Device's ID.") ]),
 		HTTPMethod("GET", "/api/device/refresh", "Refresh sensor's values for a device.", [ MethodParam("id", "number", "Device's ID.") ]),
 		HTTPMethod("GET", "/api/device/remove", "Remove a device.", [ MethodParam("id", "number", "Device's ID.") ]),
