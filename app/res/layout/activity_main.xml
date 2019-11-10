@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+
+	android:layout_width="match_parent"
+	android:layout_height="fill_parent"
+	android:orientation="vertical"
+	tools:context=".MainActivity">
+
+	<EditText
+		android:id="@+id/mac"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content"
+		android:layout_gravity="center_vertical"
+		android:text="00:21:13:05:B4:23"/>
+
+	<LinearLayout
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:orientation="horizontal"
+		android:layout_gravity="center_horizontal">
+
+		<Button
+			android:id="@+id/button_scan"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="SCAN"/>
+
+		<Button
+			android:id="@+id/button_add_dev"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="ADD"/>
+
+		<Button
+			android:id="@+id/button_remove"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="REMOVE"/>
+
+	</LinearLayout>
+
+	<EditText
+		android:id="@+id/input"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content"
+		android:layout_gravity="center_vertical"
+		android:text="192.168.1.110"/>
+
+	<LinearLayout
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:orientation="horizontal"
+		android:layout_gravity="center_horizontal">
+
+		<Button
+			android:id="@+id/button_get"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="GET"/>
+
+		<Button
+			android:id="@+id/button_refresh"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="REFRESH"/>
+
+		<Button
+			android:id="@+id/button_water"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="WATER"/>
+
+	</LinearLayout>
+
+	<TextView
+		android:id="@+id/output"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:text="Ready"
+		android:layout_gravity="center_horizontal"/>
+
+</LinearLayout>
