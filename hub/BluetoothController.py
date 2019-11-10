@@ -46,7 +46,7 @@ class BTCtl:
 			self.env.send("pairable off")
 			self.env.send("discoverable off")
 
-		if allow_unknown:
+		if allow_unknown is True:
 			Thread(target=_accept).start()
 
 		sock = BluetoothSocket(RFCOMM)
@@ -104,21 +104,22 @@ class BTCtl:
 				Logger().write("[!] %s was not found" % mac)
 				return False
 
-			Logger().write("[!] Pairing with %s" % mac)
-			self.env.send("pair %s" % mac)
-			while True:
-				out = self.env.read()
-				if self.pairPattern1.search(out):
-					self.env.send(pin)
-				elif self.pairPattern2.search(out):
-					self.env.send("yes")
-				elif "Pairing successful" in out:
-					Logger().write("[!] Paired with %s" % mac)
-					break
-				elif "Failed to pair" in out:
-					Logger().write("[!] Failed to pair with %s" % mac)
-					return False
-				sleep(1)
+		Logger().write("[!] Pairing with %s" % mac)
+		self.env.send("pair %s" % mac)
+		while True:
+			out = self.env.read()
+			if self.pairPattern1.search(out):
+				self.env.send(pin)
+			elif self.pairPattern2.search(out):
+				self.env.send("yes")
+			elif "Pairing successful" in out:
+				Logger().write("[!] Paired with %s" % mac)
+				break
+			elif "Failed to pair" in out:
+				Logger().write("[!] Failed to pair with %s" % mac)
+				self.remove(mac)
+				return False
+			sleep(1)
 
 		return True
 

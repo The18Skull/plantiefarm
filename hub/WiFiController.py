@@ -28,7 +28,7 @@ class WiFiCtl:
 			f.write(self.template % (name, password))
 		run("wpa_cli -i wlan0 reconfigure")
 		# check the connection
-		sleep(5)
+		sleep(10)
 		return self.check()
 
 	def disconnect(self):
@@ -40,5 +40,5 @@ class WiFiCtl:
 	def scan(self):
 		Logger().write("[!] Scanning Wi-Fi networks")
 		out = run("sudo iwlist wlan0 scan")
-		networks = { mac: name.strip() for (mac,name) in self.pattern.findall(out.decode()) }
+		networks = { mac: name.strip() for (mac,name) in self.pattern.findall(out) }
 		return networks
