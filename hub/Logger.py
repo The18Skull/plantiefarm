@@ -1,3 +1,5 @@
+from datetime import datetime as dt
+
 def singleton(cls):
 	instances = {}
 
@@ -20,6 +22,8 @@ class Logger:
 
 	def open(self, fname):
 		self.fname = fname
+		with open(self.fname, "a") as f:
+			f.write("\n\n\t\t\t[!] NEW SESSION (%s)" % dt.now().ctime())
 
 	def write(self, *args):
 		msg = "".join(str(x) for x in args)

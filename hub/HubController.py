@@ -10,12 +10,12 @@ class Device:
 	def __init__(self, mac, pin="0000"):
 		self.mac = mac
 		self.pin = pin
-		self.sensors = {
+		self.history = { 0: {
 			"light": 0.0,
 			"water": 0.0,
 			"temp": 0.0,
 			"hum": 0.0
-		}
+		} }
 		self.sock = None
 
 	def __del__(self):
@@ -45,6 +45,7 @@ class Device:
 			cmd = msg.strip()
 			Logger().write("[!] Sending '%s' to %s" % (cmd, str(self)))
 			data = (cmd + "\n").encode()
+
 		self.sock.send(data)
 
 	def setup(self):
@@ -60,8 +61,14 @@ class Device:
 	def recv(self):
 		data = bytes()
 		while 10 not in data: # "\n" in data
-			rcv = self.sock.recv(128)
-			data += rcv
+			try:
+				rcv = self.sock.recv(128)
+				data += rcv
+			except:
+				Logger().write("[!] Failed to recieve from %s" % str(self))
+				self.close()
+				return None
+
 		out = data.decode().strip()
 		Logger().write("[!] Recieved '%s' from %s" % (out, str(self)))
 		return out

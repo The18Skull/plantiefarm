@@ -1,9 +1,7 @@
-# from json import dumps
-from cbor2 import dumps
 from Logger import Logger
 from time import time, sleep
+from HubController import Hub
 from WiFiController import WiFiCtl
-from HubController import Hub, Device
 from BluetoothController import BTCtl
 from flask import Flask, send_from_directory, render_template, request, jsonify
 
@@ -28,7 +26,8 @@ doc_methods = {
 		HTTPMethod("GET", "/api/scan", "Scan for SmartPot devices. Returns a dictionary of devices with key as device's MAC address and value as device's name. It takes 10 seconds to scan.", []),
 		HTTPMethod("GET", "/api/devices", "List connected devices. Returns a dictionary of devices with key as ID and value as device's MAC address.", []),
 		HTTPMethod("POST", "/api/device/add", "Add a new SmartPot device.", [ MethodParam("mac", "string", "Device's MAC address.") ]),
-		HTTPMethod("GET", "/api/device/get", "Get sensor's values from a device.", [ MethodParam("id", "number", "Device's ID.") ]),
+		HTTPMethod("GET", "/api/device/get", "Get all records of sensor's values for a device.", [ MethodParam("id", "number", "Device's ID.") ]),
+		HTTPMethod("GET", "/api/device/last", "Get sensor's last values for a device.", [ MethodParam("id", "number", "Device's ID.") ]),
 		HTTPMethod("GET", "/api/device/refresh", "Refresh sensor's values for a device.", [ MethodParam("id", "number", "Device's ID.") ]),
 		HTTPMethod("GET", "/api/device/remove", "Remove a device.", [ MethodParam("id", "number", "Device's ID.") ]),
 		HTTPMethod("GET", "/api/device/water", "Water a plant of device.", [ MethodParam("id", "number", "Device's ID.") ])
@@ -64,8 +63,8 @@ def send_file(filename):
 @App.route("/api/scan", methods=[ "GET" ])
 def scan():
 	res = { "status": None, "msg": None }
-	BT = BTCtl()
 
+	BT = BTCtl()
 	try:
 		res["status"] = True
 		res["msg"] = BT.scan()
@@ -81,7 +80,7 @@ def devices():
 	devices = Hub().devices.items()
 
 	res["status"] = True
-	res["msg"] = { i: dev["mac"] for i,dev in devices }
+	res["msg"] = { i: d["mac"] for i,d in devices }
 
 	return jsonify(res)
 
@@ -90,10 +89,11 @@ def device_add():
 	res = { "status": None, "msg": None }
 	mac = request.args["mac"] if "mac" in request.args else ""
 
-	if mac:
+	BT = BTCtl()
+	if mac and BT.macPattern.match(mac):
 		dev = Hub().findDevice(mac)
 		if dev is None:
-			BTCtl().remove(mac)
+			BT.remove(mac)
 			idx = Hub().addDevice(mac)
 			dev = Hub().findDevice(idx)
 			if dev is not None:
@@ -124,10 +124,33 @@ def device_get():
 
 	dev = Hub().findDevice(idx)
 	if dev is not None:
-		data = dev["sensors"]
+		if len(dev["history"]) != 0:
+			res["status"] = True
+			res["msg"] = dev["history"]
+		else:
+			res["status"] = False
+			res["msg"] = "The history is empty. Refresh the device"
+	else:
+		res["status"] = False
+		res["msg"] = "There is no such device"
 
-		res["status"] = True
-		res["msg"] = data if res["status"] else "Failed to add an event"
+	return jsonify(res)
+
+@App.route("/api/device/last", methods=[ "GET" ])
+def device_last():
+	res = { "status": None, "msg": None }
+	idx = int(request.args["id"]) if "id" in request.args else ""
+
+	dev = Hub().findDevice(idx)
+	if dev is not None:
+		data = sorted(dev["history"].items(), key=lambda x: x[0])
+
+		if len(data) != 0:
+			res["status"] = True
+			res["msg"] = data[-1][1]
+		else:
+			res["status"] = False
+			res["msg"] = "The history is empty. Refresh the device"
 	else:
 		res["status"] = False
 		res["msg"] = "There is no such device"
@@ -141,8 +164,8 @@ def device_refresh():
 
 	dev = Hub().findDevice(idx)
 	if dev is not None:
-		res["status"] = Hub().addEvent("refresh", dev, 0)
-		res["msg"] = "OK" if res["status"] else "Failed to add event"
+		res["status"] = True
+		res["msg"] = Hub().addEvent("refresh", dev, 0)
 	else:
 		res["status"] = False
 		res["msg"] = "There is no such device"
@@ -232,27 +255,19 @@ def event_remove():
 	return jsonify(res)
 
 if __name__ == "__main__":
-	BT = BTCtl()
-	WF = WiFiCtl()
+	Logger("hub.log")
 	Logger().write("[!] SmartHub is booting")
+	WF = WiFiCtl()
 
 	Logger().write("[!] Checking Wi-Fi connection")
-	while WF.check() is False:
+	ip = WF.check()
+	if ip is False:
 		Logger().write("[!] Wi-Fi network is not available. Launching setup mode")
-		dev = Device("")
-		dev["sock"] = BT.accept(allow_unknown=True)
 
-		networks = WF.scan()
-		data = dumps(networks)
-		dev.send(data)
-		data = dev.recv()
-
-		name, password = data.split(":")
-		dev.close()
-
-		WiFiCtl().connect(name, password)
+	while ip is False:
+		ip = WF.check()
 		sleep(1)
-	Logger().write("[!] Connected to Wi-Fi network")
+	Logger().write("[!] Connected to Wi-Fi network with ip %s" % ip)
 
 	Logger().write("[!] SmartHub has started")
 	Hub().start()

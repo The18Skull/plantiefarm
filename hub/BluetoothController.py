@@ -1,7 +1,6 @@
 import re, os
 from time import sleep
 from os.path import exists
-from threading import Thread
 from Logger import Logger, singleton
 from Commands import run, InteractiveCommand
 from bluetooth import BluetoothSocket, RFCOMM
@@ -21,7 +20,9 @@ def get_port():
 @singleton
 class BTCtl:
 	def __init__(self, *args, **kwargs):
+		self.pin = "5835"
 		self.pattern = re.compile(r"Device (?P<mac>(?:[a-f0-9]{2}:?){6}) (?P<name>.*)", flags=re.I)
+		self.macPattern = re.compile(r"(?P<mac>(?:[a-f0-9]{2}:?){6})", flags=re.I)
 		self.pairPattern1 = re.compile(r"Enter PIN code", flags=re.I)
 		self.pairPattern2 = re.compile(r"Confirm passkey \d+ \(yes/no\)", flags=re.I)
 		self.env = InteractiveCommand("sudo bluetoothctl", out="btout")
@@ -29,36 +30,36 @@ class BTCtl:
 	def __del__(self):
 		self.close()
 
-	def accept(self, allow_unknown=False):
-		accept_flag = False
-
-		def _accept():
-			self.env.send("pairable on")
-			self.env.send("discoverable on")
-			Logger().write("[!] Waiting for connection")
-			while not accept_flag:
-				# out = self.env.read()
-				# res = list(filter(lambda x: x[1] == "Paired: yes", self.pattern.findall(out)))
-				# if len(res) != 0:
-				# 	mac = res[0][0]
-				# 	Logger().write("[!] Device %s was paired" % mac)
-				sleep(1)
-			self.env.send("pairable off")
-			self.env.send("discoverable off")
-
-		if allow_unknown is True:
-			Thread(target=_accept).start()
+	def accept(self, check_pin=True):
+		self.env.send("pairable on")
+		self.env.send("discoverable on")
 
 		sock = BluetoothSocket(RFCOMM)
-
 		port = get_port()
 		sock.bind(("", port))
 		sock.listen(1)
 
-		client, addr = sock.accept()
-		mac = addr[0]
-		accept_flag = True
+		Logger().write("[!] Waiting for connection")
+		while True:
+			client, addr = sock.accept()
+			mac = addr[0]
+
+			try:
+				msg = client.recv(8).decode().strip()
+			except:
+				client.close()
+				continue
+
+			if check_pin is True and msg != self.pin:
+				Logger().write("[!] Authentication failed")
+				client.close()
+				continue
+
+			break
 		Logger().write("[!] Device %s has connected" % mac)
+
+		self.env.send("discoverable off")
+		self.env.send("pairable off")
 
 		return client
 
@@ -141,6 +142,3 @@ class BTCtl:
 		run("sudo bluetoothctl --timeout 10 scan on")
 		# get list of available devices
 		return self.devices()
-
-if __name__ == "__main__":
-	pass
