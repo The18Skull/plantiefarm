@@ -57,13 +57,15 @@ class Refresh(Event):
 	def func(self):
 		self.dev.send("get")
 		out = self.dev.recv()
+		if out is None:
+			return
 
-		res = {}
+		res = { "time": int(time()) }
 		for x in out.lower().split("|"):
 			key, value = x.split(":")
 			res[key] = float(value)
-	
-		self.dev.sensors.update(res)
+
+		self.dev.history[res["time"]] = res
 
 class Water(Event):
 	def __init__(self, *args, **kwargs):
