@@ -38,25 +38,36 @@ tbody {
 	border-color: inherit;
 }
 
-td {
-	display: table-cell;
-	width: 33%;
-}
-
 tr {
 	display: table-row;
 	vertical-align: inherit;
 	border-color: inherit;
 }
 
+tbody tr {
+	border-top: 1px solid #dddddd;
+}
+
 tbody tr:hover {
 	background-color: #dddddd;
+}
+
+td {
+	display: table-cell;
+	text-align: left;
+}
+
+th {
+	text-align: center;
 }
 
 th, td {
 	padding: 8px;
 	line-height: 18px;
-	text-align: left;
 	vertical-align: top;
-	border-bottom: 1px solid #dddddd;
+	width: 33%;
+}
+
+th:not(:last-child), td:not(:last-child) {
+	border-right: 1px solid #dddddd;
 }

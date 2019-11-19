@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>SmartHub API</title>
+		<link rel="stylesheet" href="style.css">
+	</head>
+	<body>
+		<div class="container">
+			<h1><a href="/">&lt;&lt;</a> Welcome to SmartHub API for developers!</h1>
+			<p>Feel free to implement your devices to work with SmartHub and SmartPot systems.</p>
+			<hr/>
+			{% for type,subs in methods.items() %}
+				<h2>{{ type }}</h2>
+				<table>
+					<thead>
+						<tr>
+							<th>Method</th>
+							<th>URL</th>
+							<th>Description</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for m in subs %}
+							<tr>
+								<td>{{ m["method"] }}</td>
+								<td><a href="{{ '/manual?manual=%s&page=%d' % (type, loop.index0) }}">{{ m["url"] }}</a></td>
+								<td>{{ m["small_desc"] }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			{% endfor %}
+		</div>
+	</body>
+</html>
