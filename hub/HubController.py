@@ -2,7 +2,7 @@ import pickle
 from time import sleep
 from random import randint
 from threading import Thread
-from Events import Refresh, Water
+from Events import event_types
 from Logger import Logger, singleton
 from BluetoothController import BTCtl
 
@@ -10,13 +10,9 @@ class Device:
 	def __init__(self, mac, pin="0000"):
 		self.mac = mac
 		self.pin = pin
-		self.history = { 0: {
-			"light": 0.0,
-			"water": 0.0,
-			"temp": 0.0,
-			"hum": 0.0
-		} }
+		self.history = []
 		self.sock = None
+		self.busy = False
 
 	def __del__(self):
 		self.close()
@@ -31,47 +27,82 @@ class Device:
 		return "Device %s" % self.mac
 
 	def close(self):
-		if self.sock is not None:
-			self.sock.close()
+		if self.busy is True:
+			if self.sock is not None:
+				self.sock.close()
 			self.sock = None
+			self.busy = False
+			sleep(1)
 
 	def connect(self):
+		while self.busy is True:
+			sleep(1)
+		self.busy = True
 		self.sock = BTCtl().connect(self.mac)
 
-	def send(self, msg):
-		if isinstance(msg, bytes):
-			data = msg
-		else:
-			cmd = msg.strip()
-			Logger().write("[!] Sending '%s' to %s" % (cmd, str(self)))
-			data = (cmd + "\n").encode()
-
-		self.sock.send(data)
-
-	def setup(self):
-		BTCtl().pair(self.mac, self.pin)
-		self.connect()
-		self.pin = "%04d" % randint(0,9999)
-		self.send("setup%s%d" % (self.pin, 0))
-		self.close()
-
-		BTCtl().remove(self.mac)
-		BTCtl().pair(self.mac, self.pin)
+		if self.sock is None:
+			self.close()
 
 	def recv(self):
+		if self.sock is None:
+			return None
+
 		data = bytes()
 		while 10 not in data: # "\n" in data
 			try:
 				rcv = self.sock.recv(128)
 				data += rcv
-			except:
-				Logger().write("[!] Failed to recieve from %s" % str(self))
+			except Exception as ex:
+				Logger().write("[!] Failed to recieve from %s" % str(self), tag="DEVICE")
+				Logger().write(ex, tag="EXCEPT")
 				self.close()
 				return None
 
 		out = data.decode().strip()
-		Logger().write("[!] Recieved '%s' from %s" % (out, str(self)))
+		Logger().write("[>] Recieved '%s' from %s" % (out, str(self)), tag="DEVICE")
 		return out
+
+	def send(self, msg):
+		if self.sock is None:
+			return -1
+
+		if isinstance(msg, bytes):
+			data = msg
+		else:
+			cmd = msg.strip()
+			Logger().write("[<] Sending '%s' to %s" % (cmd, str(self)), tag="DEVICE")
+			data = (cmd + "\n").encode()
+
+		try:
+			ret = self.sock.send(data)
+			sleep(1) # sleep for proper hc06 reading
+			return ret
+		except Exception as ex:
+			Logger().write("[!] %s has disconnected" % str(self), tag="DEVICE")
+			Logger().write(ex, tag="EXCEPT")
+			return -1
+
+	def setup(self):
+		ret = BTCtl().pair(self.mac, self.pin)
+		if ret is False:
+			return False
+
+		self.connect()
+		pin = "%04d" % randint(0,9999)
+		ret = self.send("setup%s%d" % (pin, 0))
+		self.close()
+		self.busy = True
+		BTCtl().remove(self.mac)
+
+		if ret == -1:
+			self.close()
+			return False
+
+		self.pin = pin
+		ret = BTCtl().pair(self.mac, self.pin)
+		self.close()
+
+		return ret
 
 @singleton
 class Hub(Thread):
@@ -83,17 +114,17 @@ class Hub(Thread):
 
 		self.load(self.fname)
 
-	def addDevice(self, mac):
+	def addDevice(self, mac, pin="0000"):
 		arr = [ int(x) for x in self.devices.keys() ]
 		for i in range(0,10000):
 			if i not in arr:
 				break
 
-		dev = Device(mac)
+		dev = Device(mac, pin)
 		self.devices[i] = dev
 		self.save()
 
-		Logger().write("[+] Added %s with ID %d" % (str(dev), i))
+		Logger().write("[+] Added %s with ID %d" % (str(dev), i), tag="HUB")
 		return i
 
 	def addEvent(self, ev, dev, time, repeat=None):
@@ -102,12 +133,12 @@ class Hub(Thread):
 			if i not in arr:
 				break
 
-		obj = Refresh if ev == "refresh" else Water
-		ev = obj(self, dev, time, repeat, idx=i)
+		obj = event_types[ev]
+		ev = obj(self, dev, time, repeat)
 		self.events[i] = ev
 		self.save()
 
-		Logger().write("[+] Added %s with ID %d" % (str(ev), i))
+		Logger().write("[+] Added %s with ID %d" % (str(ev), i), tag="HUB")
 		return i
 
 	def clear(self):
@@ -141,38 +172,40 @@ class Hub(Thread):
 			with open(fname, "rb") as f:
 				devices, events = pickle.load(f)
 			self.fname = fname
-		except Exception:
+		except Exception as ex:
+			Logger().write(ex, tag="EXCEPT")
 			devices = {}
 			events = {}
 
 		for idx,(mac,pin) in devices.items():
 			self.devices[idx] = Device(mac, pin)
 		for idx,(ev,did,time,repeat) in events.items():
-			obj = Refresh if ev == "refresh" else Water
+			obj = event_types[ev]
 			dev = self.findDevice(did)
 			if dev is not None:
 				self.events[idx] = obj(self, dev, time, repeat, idx=idx)
 
 	def loop(self):
 		while True:
-			events = sorted(self.events.items(), key=lambda x: x[1]["time"])
-			if len(events) != 0:
-				idx = events[0][0]
-				ev = self.events[idx]
-				ev.exec()
+			for idx,ev in sorted(self.events.items(), key=lambda x: x[1]["time"]):
+				ev.exec(idx)
 			self.printStack()
 			sleep(0.1)
 
 	def printStack(self):
 		with open("stack", "w") as f:
-			for i,e in enumerate(self.events.values()):
-				f.write("%d. %s\n" % (i, str(e)))
+			f.write("%s" % "".join([ "%d. %s\n" % (i, str(e)) for i,e in enumerate(self.events.values()) ]))
 
 	def removeDevice(self, idx):
 		dev = self.findDevice(idx)
 		self.removeObj(self.devices, idx)
 		dev.close()
 		BTCtl().remove(dev["mac"])
+
+		for idx in tuple(self.events.keys()):
+			ev = self.events[idx]
+			if ev.dev["mac"] == dev["mac"]:
+				self.removeEvent(idx)
 
 		self.save()
 		return True
@@ -187,7 +220,7 @@ class Hub(Thread):
 
 	def removeObj(self, arr, idx):
 		obj = arr.pop(idx)
-		Logger().write("[-] Removed %s" % str(obj))
+		Logger().write("[-] Removed %s" % str(obj), tag="HUB")
 
 	def save(self, fname=None):
 		if fname is None:
@@ -198,7 +231,3 @@ class Hub(Thread):
 		with open(fname, "wb") as f:
 			pickle.dump((devices, events), f)
 		self.fname = fname
-
-if __name__ == "__main__":
-	h = Hub()
-	print(1)

@@ -17,13 +17,13 @@ class WiFiCtl:
 		if "wlan0" in out:
 			res = self.checkPattern.search(out)
 			if res: return res["ip"]
-			else: Logger().write("[!] Failed to establish a Wi-Fi connection")
-		else: Logger().write("[!] Wi-Fi interface was not found")
+			else: Logger().write("[!] Failed to establish a Wi-Fi connection", tag="WFCTL")
+		else: Logger().write("[!] Wi-Fi interface was not found", tag="WFCTL")
 
-		return False
+		return "null"
 
 	def connect(self, name, password):
-		Logger().write("[!] Connecting to Wi-Fi network '%s'" % name)
+		Logger().write("[!] Connecting to Wi-Fi network '%s'" % name, tag="WFCTL")
 		with open("/etc/wpa_supplicant/wpa_supplicant.conf", "w") as f:
 			f.write(self.template % (name, password))
 		run("wpa_cli -i wlan0 reconfigure")
@@ -32,13 +32,13 @@ class WiFiCtl:
 		return self.check()
 
 	def disconnect(self):
-		Logger().write("[!] Reseting Wi-Fi settings")
+		Logger().write("[!] Reseting Wi-Fi settings", tag="WFCTL")
 		with open("/etc/wpa_supplicant/wpa_supplicant.conf", "w") as f:
 			f.write(self.template.split("network")[0])
 		run("wpa_cli -i wlan0 reconfigure")
 
 	def scan(self):
-		Logger().write("[!] Scanning Wi-Fi networks")
+		Logger().write("[!] Scanning Wi-Fi networks", tag="WFCTL")
 		out = run("sudo iwlist wlan0 scan")
 		networks = { mac: name.strip() for (mac,name) in self.pattern.findall(out) }
 		return networks

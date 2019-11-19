@@ -13,7 +13,7 @@ def run(*args, **kwargs):
 
 class InteractiveCommand(Popen):
 	def __init__(self, *args, **kwargs):
-		fname = kwargs.pop("out") if "out" in kwargs else "out"
+		fname = "logs/%s.log" % (kwargs.pop("out") if "out" in kwargs else "out")
 
 		args = (args[0].split(),)
 		kwargs["stdin"] = PIPE

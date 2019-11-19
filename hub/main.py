@@ -1,7 +1,9 @@
+from time import sleep
 from Logger import Logger
-from time import time, sleep
 from HubController import Hub
+from Events import event_types
 from WiFiController import WiFiCtl
+from datetime import datetime as dt
 from BluetoothController import BTCtl
 from flask import Flask, send_from_directory, render_template, request, jsonify
 
@@ -13,6 +15,9 @@ class MethodParam:
 		self.type = type
 		self.desc = desc
 
+	def __getitem__(self, key):
+		return self.__dict__[key]
+
 class HTTPMethod:
 	def __init__(self, method, url, desc, params):
 		self.method = method
@@ -21,11 +26,17 @@ class HTTPMethod:
 		self.big_desc = desc
 		self.params = params
 
+	def __getitem__(self, key):
+		return self.__dict__[key]
+
 doc_methods = {
 	"Device": [
 		HTTPMethod("GET", "/api/scan", "Scan for SmartPot devices. Returns a dictionary of devices with key as device's MAC address and value as device's name. It takes 10 seconds to scan.", []),
 		HTTPMethod("GET", "/api/devices", "List connected devices. Returns a dictionary of devices with key as ID and value as device's MAC address.", []),
-		HTTPMethod("POST", "/api/device/add", "Add a new SmartPot device.", [ MethodParam("mac", "string", "Device's MAC address.") ]),
+		HTTPMethod("POST", "/api/device/add", "Add a new SmartPot device.", [
+			MethodParam("mac", "string", "Device's MAC address."),
+			MethodParam("pin", "string", "Device's PIN for bluetooth pairing (optional).")
+		]),
 		HTTPMethod("GET", "/api/device/get", "Get all records of sensor's values for a device.", [ MethodParam("id", "number", "Device's ID.") ]),
 		HTTPMethod("GET", "/api/device/last", "Get sensor's last values for a device.", [ MethodParam("id", "number", "Device's ID.") ]),
 		HTTPMethod("GET", "/api/device/refresh", "Refresh sensor's values for a device.", [ MethodParam("id", "number", "Device's ID.") ]),
@@ -36,7 +47,7 @@ doc_methods = {
 		HTTPMethod("GET", "/api/events", "List planned events. Returns an array of events where each event is a dictionary with fields 'id', 'device's id', 'type', 'time', 'repeat'.", []),
 		HTTPMethod("POST", "/api/event/add", "Add an event.", [
 			MethodParam("id", "number", "Device's ID."),
-			MethodParam("type", "string", "Event's type. Must be either 'refresh' or 'water'."),
+			MethodParam("type", "string", "Event's type. Must be one of '%s'." % ("', '".join([ x.capitalize() for x in event_types.keys() ]))),
 			MethodParam("time", "number", "Unix timestamp UTC time to execute an event."),
 			MethodParam("repeat", "number", "Unix timestamp UTC time to add after completion of the event. Can be omitted.")
 		]),
@@ -44,9 +55,43 @@ doc_methods = {
 	]
 }
 
+doc_algorithms = {
+	None: None
+}
+
+@App.before_request
+def before_request():
+	Logger().write("[%s] %s" % (request.method, request.full_path.rstrip("?")), tag="HTTP")
+
 @App.route("/")
 def send_main():
-	return render_template("index.html", methods=doc_methods)
+	def getLast(obj, tag):
+		return obj["history"][-1][tag] if len(obj["history"]) != 0 else ""
+
+	devs = {
+		i: {
+			"mac": dev["mac"],
+			"pin": dev["pin"],
+			"history": len(dev["history"]),
+			"hum": getLast(dev, "hum"),
+			"light": getLast(dev, "light"),
+			"temp": getLast(dev, "temp"),
+			"water": getLast(dev, "water")
+		} for i,dev in Hub().devices.items()
+	}
+	evts = {
+		i: {
+			"type": ev.name.capitalize(),
+			"dev": Hub().findDeviceID(ev.dev["mac"]),
+			"time": dt.fromtimestamp(ev.time).strftime("%H:%M:%S %d/%m/%Y")
+		} for i,ev in Hub().events.items()
+	}
+
+	return render_template("index.html", devices=devs, events=evts)
+
+@App.route("/api")
+def send_api():
+	return render_template("api.html", methods=doc_methods)
 
 @App.route("/manual")
 def send_manual():
@@ -64,11 +109,11 @@ def send_file(filename):
 def scan():
 	res = { "status": None, "msg": None }
 
-	BT = BTCtl()
 	try:
 		res["status"] = True
-		res["msg"] = BT.scan()
-	except Exception:
+		res["msg"] = BTCtl().scan()
+	except Exception as ex:
+		Logger().write(ex, tag="EXCEPT")
 		res["status"] = False
 		res["msg"] = "Failed to scan for bluetooth devices"
 
@@ -88,20 +133,21 @@ def devices():
 def device_add():
 	res = { "status": None, "msg": None }
 	mac = request.args["mac"] if "mac" in request.args else ""
+	pin = request.args["pin"] if "pin" in request.args else "0000"
 
-	BT = BTCtl()
-	if mac and BT.macPattern.match(mac):
+	if mac and BTCtl().macPattern.match(mac):
 		dev = Hub().findDevice(mac)
 		if dev is None:
-			BT.remove(mac)
-			idx = Hub().addDevice(mac)
+			BTCtl().remove(mac)
+			idx = Hub().addDevice(mac, pin)
 			dev = Hub().findDevice(idx)
 			if dev is not None:
 				try:
-					dev.setup()
+					Hub().addEvent("setup", dev, 0)
 					res["status"] = True
 					res["msg"] = idx
-				except Exception:
+				except Exception as ex:
+					Logger().write(ex, tag="EXCEPT")
 					Hub().removeDevice(idx)
 					res["status"] = False
 					res["msg"] = "Failed to setup device"
@@ -124,9 +170,11 @@ def device_get():
 
 	dev = Hub().findDevice(idx)
 	if dev is not None:
-		if len(dev["history"]) != 0:
+		data = dev["history"]
+
+		if len(data) != 0:
 			res["status"] = True
-			res["msg"] = dev["history"]
+			res["msg"] = data
 		else:
 			res["status"] = False
 			res["msg"] = "The history is empty. Refresh the device"
@@ -143,11 +191,11 @@ def device_last():
 
 	dev = Hub().findDevice(idx)
 	if dev is not None:
-		data = sorted(dev["history"].items(), key=lambda x: x[0])
+		data = dev["history"]
 
 		if len(data) != 0:
 			res["status"] = True
-			res["msg"] = data[-1][1]
+			res["msg"] = data[-1]
 		else:
 			res["status"] = False
 			res["msg"] = "The history is empty. Refresh the device"
@@ -227,7 +275,7 @@ def event_add():
 
 	dev = Hub().findDevice(idx)
 	if dev is not None:
-		if ev in ("refresh","water"):
+		if ev in event_types.keys():
 			res["status"] = True
 			res["msg"] = Hub().addEvent(ev, dev, time, repeat)
 		else:
@@ -255,20 +303,20 @@ def event_remove():
 	return jsonify(res)
 
 if __name__ == "__main__":
-	Logger("hub.log")
-	Logger().write("[!] SmartHub is booting")
+	Logger("hub")
+	Logger().write("[!] SmartHub is booting", tag="BOOT")
 	WF = WiFiCtl()
 
-	Logger().write("[!] Checking Wi-Fi connection")
+	Logger().write("[!] Checking Wi-Fi connection", tag="BOOT")
 	ip = WF.check()
 	if ip is False:
-		Logger().write("[!] Wi-Fi network is not available. Launching setup mode")
+		Logger().write("[!] Wi-Fi network is not available. Please setup Wi-Fi network using Bluetooth CLI with PIN '%s'" % BTCtl().pin, tag="BOOT")
 
 	while ip is False:
 		ip = WF.check()
 		sleep(1)
-	Logger().write("[!] Connected to Wi-Fi network with ip %s" % ip)
+	Logger().write("[!] Connected to Wi-Fi network with ip address '%s'" % ip, tag="BOOT")
 
-	Logger().write("[!] SmartHub has started")
+	Logger().write("[!] SmartHub has started", tag="BOOT")
 	Hub().start()
 	App.run(host="0.0.0.0")

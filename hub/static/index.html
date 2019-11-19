@@ -4,33 +4,74 @@
 		<meta charset="utf-8">
 		<title>SmartHub API</title>
 		<link rel="stylesheet" href="style.css">
+		<style>th,td { width: auto }</style>
 	</head>
 	<body>
 		<div class="container">
-			<h1>Welcome to SmartHub API for developers!</h1>
-			<p>Feel free to implement your devices to work with SmartHub and SmartPot systems.</p>
+			<h1>Control Panel</h1>
 			<hr/>
-			{% for type, subs in methods.items() %}
-			<h2>{{ type }}</h2>
+			<h2>Devices</h2>
 			<table>
 				<thead>
 					<tr>
-						<th>Method</th>
-						<th>URL</th>
-						<th>Description</th>
+						<th rowspan="2">ID</th>
+						<th rowspan="2">MAC</th>
+						<th rowspan="2">PIN</th>
+						<th colspan="4" style="border-bottom: 1px solid #dddddd">Sensors</th>
+					</tr>
+					<tr>
+						<th>Humidity</th>
+						<th>Light</th>
+						<th>Temperature</th>
+						<th>Water</th>
 					</tr>
 				</thead>
 				<tbody>
-					{% for m in subs %}
-					<tr>
-						<td>{{ m.method }}</td>
-						<td><a href="{{ '/manual?manual=%s&page=%d' % (type, loop.index0) }}">{{ m.url }}</a></td>
-						<td>{{ m.small_desc }}</td>
-					</tr>
-					{% endfor %}
+					{% if devices|length != 0 %}
+						{% for id,dev in devices.items() %}
+							<tr>
+								<td>{{ id }}</td>
+								{% for k in ("mac","pin","hum","light","temp","water") %}
+									<td>{{ dev[k] }}</td>
+								{% endfor %}
+							</tr>
+						{% endfor %}
+					{% else %}
+						<tr>
+							<td colspan="7">Empty</td>
+						</tr>
+					{% endif %}
 				</tbody>
 			</table>
-			{% endfor %}
+			<h2>Events</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>Event ID</th>
+						<th>Event type</th>
+						<th>Device ID</th>
+						<th>Time</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% if events|length != 0 %}
+						{% for id,ev in events.items() %}
+							<tr>
+								<td>{{ id }}</td>
+								<td>{{ ev["type"] }}</td>
+								<td>{{ ev["dev"] }}</td>
+								<td>{{ ev["time"] }}</td>
+							</tr>
+						{% endfor %}
+					{% else %}
+						<tr>
+							<td colspan="7">Empty</td>
+						</tr>
+					{% endif %}
+				</tbody>
+			</table>
+			<hr/>
+			<p>If you are not satisfied with SmartHub App, you can develop your own software using <a href="/api">SmartHub API</a>.</p>
 		</div>
 	</body>
 </html>

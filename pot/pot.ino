@@ -35,11 +35,11 @@ DHT dht(tempSensor, DHT11);
 //Servo waterSM;
 
 void restartBT() {
+	digitalWrite(bluetoothPWR, LOW); // power down bluetooth
+	delay(100); // wait for power off
 	digitalWrite(bluetoothPWR, HIGH); // power up bluetooth
 	BTSerial.begin(9600); // restart serial bridge
 	delay(1000); // wait for power on
-	digitalWrite(bluetoothPWR, LOW); // power down bluetooth
-	delay(100); // wait for power off
 }
 
 void set(String name, String pin) {

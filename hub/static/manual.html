@@ -7,8 +7,8 @@
 	</head>
 	<body>
 		<div class="container">
-			<h1><a href="/">&lt;&lt;</a> {{ method.method }} {{ method.url }}</h1>
-			<p>{{ method.big_desc }}</p>
+			<h1><a href="/api">&lt;&lt;</a> {{ method["method"] }} {{ method["url"] }}</h1>
+			<p>{{ method["big_desc"] }}</p>
 			<hr/>
 			<h2>Parameters</h2>
 			<table>
@@ -21,11 +21,11 @@
 				</thead>
 				<tbody>
 					{% for par in method.params %}
-					<tr>
-						<td>{{ par.name }}</td>
-						<td>{{ par.type }}</td>
-						<td>{{ par.desc }}</td>
-					</tr>
+						<tr>
+							<td>{{ par["name"] }}</td>
+							<td>{{ par["type"] }}</td>
+							<td>{{ par["desc"] }}</td>
+						</tr>
 					{% endfor %}
 				</tbody>
 			</table>

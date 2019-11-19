@@ -13,21 +13,21 @@ def threadFunc(sock):
 
 	while True:
 		msg = dev.recv()
-		if not msg:
+		if msg is None:
 			break
 
 		cmd = msg.split()
 		if cmd[0] == "connect" and len(cmd) == 2:
 			name, password = cmd[1].split(":")
 			ip = WiFiCtl().connect(name, password)
-			dev.send("OK" if ip is not None else "FAIL")
+			dev.send(ip)
 		elif cmd[0] == "scan":
 			networks = WiFiCtl().scan()
 			data = dumps(networks)
 			dev.send(data)
 		elif cmd[0] == "check":
 			ip = WiFiCtl().check()
-			dev.send(str(ip))
+			dev.send(ip)
 		elif cmd[0] == "disconnect":
 			WiFiCtl().disconnect()
 			dev.send("OK")
@@ -36,13 +36,13 @@ def threadFunc(sock):
 
 		sleep(1)
 
-	Logger().write("[-] Client has disconnected")
+	Logger().write("[-] Client has disconnected", tag="INFO")
 	dev.close()
 
 if __name__ == "__main__":
-	Logger("cli.log")
+	Logger("cli")
 	BT = BTCtl()
-	Logger().write("[!] Bluetooth Command Line Interface has started. Waiting for connections")
+	Logger().write("[!] Bluetooth Command Line Interface has started", tag="BOOT")
 	while True:
 		sock = BT.accept(check_pin=True)
 		Thread(target=threadFunc, args=(sock,)).start()
