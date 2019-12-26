@@ -10,9 +10,7 @@ class Kalman {
     float zp = 0.0;
     float xe = 0.0;
   public:
-    Kalman() {
-      return;
-    }
+    Kalman() { }
     Kalman(float dev, float c) {
       this->deviation = dev;
       this->coeff = c;

@@ -1,9 +1,9 @@
 from time import sleep
-# from json import dumps
-from cbor2 import dumps
+from json import dumps
+# from cbor2 import dumps
 from Logger import Logger
 from threading import Thread
-from HubController import Device
+from HubController import TrueDevice as Device
 from WiFiController import WiFiCtl
 from BluetoothController import BTCtl
 

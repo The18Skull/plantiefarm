@@ -56,7 +56,10 @@ doc_methods = {
 }
 
 doc_algorithms = {
-	None: None
+	"default": [
+		{ "action": "refresh", "repeat": 60 }, # once per minute
+		{ "action": "water", "repeat": 43200 } # once per 12 hours
+	]
 }
 
 @App.before_request
@@ -166,7 +169,7 @@ def device_add():
 @App.route("/api/device/get", methods=[ "GET" ])
 def device_get():
 	res = { "status": None, "msg": None }
-	idx = int(request.args["id"]) if "id" in request.args else ""
+	idx = request.args["id"] if "id" in request.args else ""
 
 	dev = Hub().findDevice(idx)
 	if dev is not None:
@@ -187,7 +190,7 @@ def device_get():
 @App.route("/api/device/last", methods=[ "GET" ])
 def device_last():
 	res = { "status": None, "msg": None }
-	idx = int(request.args["id"]) if "id" in request.args else ""
+	idx = request.args["id"] if "id" in request.args else ""
 
 	dev = Hub().findDevice(idx)
 	if dev is not None:
@@ -208,7 +211,7 @@ def device_last():
 @App.route("/api/device/refresh", methods=[ "GET" ])
 def device_refresh():
 	res = { "status": None, "msg": None }
-	idx = int(request.args["id"]) if "id" in request.args else ""
+	idx = request.args["id"] if "id" in request.args else ""
 
 	dev = Hub().findDevice(idx)
 	if dev is not None:
@@ -220,10 +223,10 @@ def device_refresh():
 
 	return jsonify(res)
 
-@App.route("/api/device/remove", methods=[ "GET" ])
+@App.route("/api/device/remove", methods=[ "POST" ])
 def device_remove():
 	res = { "status": None, "msg": None }
-	idx = int(request.args["id"]) if "id" in request.args else ""
+	idx = request.args["id"] if "id" in request.args else ""
 
 	dev = Hub().findDevice(idx)
 	if dev is not None:
@@ -235,10 +238,10 @@ def device_remove():
 
 	return jsonify(res)
 
-@App.route("/api/device/water", methods=[ "GET" ])
+@App.route("/api/device/water", methods=[ "POST" ])
 def device_water():
 	res = { "status": None, "msg": None }
-	idx = int(request.args["id"]) if "id" in request.args else ""
+	idx = request.args["id"] if "id" in request.args else ""
 
 	dev = Hub().findDevice(idx)
 	if dev is not None:
@@ -268,7 +271,7 @@ def events():
 @App.route("/api/event/add", methods=[ "POST" ])
 def event_add():
 	res = { "status": None, "msg": None }
-	idx = int(request.args["id"]) if "id" in request.args else ""
+	idx = request.args["id"] if "id" in request.args else ""
 	ev = request.args["type"].lower() if "type" in request.args else ""
 	time = int(request.args["time"]) if "time" in request.args else 0
 	repeat = int(request.args["repeat"]) if "repeat" in request.args else None
@@ -287,10 +290,10 @@ def event_add():
 
 	return jsonify(res)
 
-@App.route("/api/event/remove", methods=[ "GET" ])
+@App.route("/api/event/remove", methods=[ "POST" ])
 def event_remove():
 	res = { "status": None, "msg": None }
-	idx = int(request.args["id"]) if "id" in request.args else -1
+	idx = request.args["id"] if "id" in request.args else -1
 
 	ev = Hub().findEvent(idx)
 	if ev is not None:
