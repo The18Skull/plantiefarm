@@ -1,12 +1,11 @@
 #include "DHT.h" // for dht11 reading
 //#include <Servo.h> // for servo motor control
-#include "kalman.cpp" // kalman's filter
+#include "Kalman.cpp" // kalman's filter
 #include <SoftwareSerial.h> // for communication through hc06
 
 // pins
 const byte restartButton = 2; // some button
 const byte tempSensor = 4; // dht11 temperature sensor
-const byte bluetoothPWR = 7; // bluetooth power pin
 const byte servoMotor = 9; // sg90 servo motor
 const byte bluetoothTX = 10; // hc06 bluetooth tx
 const byte bluetoothRX = 11; // hc06 bluetooth rx
@@ -34,21 +33,11 @@ DHT dht(tempSensor, DHT11);
 // servo motor
 //Servo waterSM;
 
-void restartBT() {
-	digitalWrite(bluetoothPWR, LOW); // power down bluetooth
-	delay(100); // wait for power off
-	digitalWrite(bluetoothPWR, HIGH); // power up bluetooth
-	BTSerial.begin(9600); // restart serial bridge
-	delay(1000); // wait for power on
-}
-
 void set(String name, String pin) {
 	Serial.println("[!] Entering setup mode");
 	digitalWrite(led, HIGH); // light the light (kinda su mode)
 
-	// kick bt client
-	restartBT();
-
+	delay(2000); // wait for bt client to disconnect
 	BTSerial.print("AT+NAME"); BTSerial.print(name); delay(1000); // restore name
 	BTSerial.print("AT+PIN"); BTSerial.print(pin); delay(1000); // restore pin
 
@@ -83,8 +72,8 @@ void reset() { // reset parameters
 	Serial.println("[!] Resetting the settings...");
 	Serial.println("[!] Bluetooth pair must be disconnected (bt red light should blink)");
 
+	// reset servo position
 	setServo(0);
-
 	// reset name and pin
 	String name = String("SmartPot");
 	String pin = String("0000");
@@ -100,8 +89,6 @@ void setup() {
 	pinMode(lightSensor, INPUT);
 	pinMode(waterSensor, INPUT);
 	pinMode(tempSensor, INPUT);
-	pinMode(bluetoothPWR, OUTPUT);
-	digitalWrite(bluetoothPWR, HIGH); // power up bluetooth
 
 	Serial.begin(9600);
 	BTSerial.begin(9600);
@@ -178,7 +165,6 @@ void loop() {
 		String msg = Serial.readString();
 		if (msg.startsWith("AT")) {
 			msg.remove(msg.indexOf('\n'));
-			restartBT(); // kick clients
 			BTSerial.print(msg);
 		} else onMessage(msg);
 	}

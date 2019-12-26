@@ -1,12 +1,66 @@
 import pickle
 from time import sleep
-from random import randint
+from random import random,randint
 from threading import Thread
 from Events import event_types
 from Logger import Logger, singleton
 from BluetoothController import BTCtl
 
+def generateID(check):
+	stack = set()
+	while True:
+		name = "%06d" % randint(0,999999)
+		if not check(name) and name not in stack:
+			continue
+		stack.add(name)
+		yield name
+
+		for x in stack:
+			if not check(name):
+				stack.remove(x)
+
 class Device:
+	def __init__(self, mac, pin="0000"):
+		self.mac = mac
+		self.pin = pin
+		self.history = []
+		self.sock = None
+		self.busy = False
+
+	def __del__(self):
+		self.close()
+
+	def __getitem__(self, key):
+		return self.__dict__[key]
+
+	def __setitem__(self, key, value):
+		self.__dict__[key] = value
+
+	def __str__(self):
+		return "Device %s" % self.mac
+
+	def close(self):
+		if self.busy is True:
+			self.sock = None
+			self.busy = False
+			sleep(1)
+
+	def connect(self):
+		while self.busy is True:
+			sleep(1)
+		self.busy = True
+		self.sock = 1
+
+	def recv(self):
+		return "Light:%.2f|Water:%.2f|Temp:%.2f|Hum:%.2f" % tuple(random() * 100 for _ in range(4))
+
+	def send(self, msg):
+		return 20
+
+	def setup(self):
+		return True
+
+class TrueDevice:
 	def __init__(self, mac, pin="0000"):
 		self.mac = mac
 		self.pin = pin
@@ -112,52 +166,44 @@ class Hub(Thread):
 		self.devices = {}
 		self.events = {}
 
+		self.genDeviceKey = generateID(lambda name: name not in self.devices)
+		self.genEventsKey = generateID(lambda name: name not in self.events)
 		self.load(self.fname)
 
 	def addDevice(self, mac, pin="0000"):
-		arr = [ int(x) for x in self.devices.keys() ]
-		for i in range(0,10000):
-			if i not in arr:
-				break
-
+		key = next(self.genDeviceKey)
 		dev = Device(mac, pin)
-		self.devices[i] = dev
+		self.devices[key] = dev
 		self.save()
 
-		Logger().write("[+] Added %s with ID %d" % (str(dev), i), tag="HUB")
-		return i
+		Logger().write("[+] Added %s with ID '%s'" % (str(dev), key), tag="HUB")
+		return key
 
 	def addEvent(self, ev, dev, time, repeat=None):
-		arr = [ int(x) for x in self.events.keys() ]
-		for i in range(0,10000):
-			if i not in arr:
-				break
-
+		key = next(self.genEventsKey)
 		obj = event_types[ev]
 		ev = obj(self, dev, time, repeat)
-		self.events[i] = ev
+		self.events[key] = ev
 		self.save()
 
-		Logger().write("[+] Added %s with ID %d" % (str(ev), i), tag="HUB")
-		return i
+		Logger().write("[+] Added %s with ID '%s'" % (str(ev), key), tag="HUB")
+		return key
 
 	def clear(self):
 		self.devices.clear()
 		self.events.clear()
 
-	def findDevice(self, idx):
-		if not isinstance(idx, str):
-			return self.findObj(self.devices, idx)
+	def findDevice(self, key):
+		if ":" not in key:
+			return self.findObj(self.devices, key)
 
-		mac = idx
+		mac = key
 		devs = list(filter(lambda x: x["mac"] == mac, self.devices.values()))
-		dev = devs[0] if len(devs) == 1 else None
-		return dev
+		return devs[0] if len(devs) == 1 else None
 
 	def findDeviceID(self, mac):
 		devs = list(filter(lambda x: x[1]["mac"] == mac, self.devices.items()))
-		idx = devs[0][0] if len(devs) == 1 else None
-		return idx
+		return devs[0][0] if len(devs) == 1 else None
 
 	def findEvent(self, idx):
 		return self.findObj(self.events, idx)
@@ -183,7 +229,7 @@ class Hub(Thread):
 			obj = event_types[ev]
 			dev = self.findDevice(did)
 			if dev is not None:
-				self.events[idx] = obj(self, dev, time, repeat, idx=idx)
+				self.events[idx] = obj(self, dev, time, repeat)
 
 	def loop(self):
 		while True:
@@ -223,7 +269,7 @@ class Hub(Thread):
 		Logger().write("[-] Removed %s" % str(obj), tag="HUB")
 
 	def save(self, fname=None):
-		if fname is None:
+		if not fname:
 			fname = self.fname
 
 		devices = { key: [ dev["mac"], dev["pin"] ] for key,dev in self.devices.items() }

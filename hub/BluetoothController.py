@@ -15,7 +15,6 @@ def get_port():
 				return port
 			except Exception as ex:
 				s.close()
-				Logger().write(ex, tag="EXCEPT")
 		sleep(1)
 
 @singleton
@@ -118,21 +117,20 @@ class BTCtl:
 
 		Logger().write("[!] Pairing with %s" % mac, tag="BTCTL")
 		self.env.send("pair %s" % mac)
-		while True:
+		while mac not in self.paired():
+			sleep(5)
 			out = self.env.read()
 			if self.pairPattern1.search(out):
 				self.env.send(pin)
 			elif self.pairPattern2.search(out):
 				self.env.send("yes")
-			elif "Pairing successful" in out:
-				Logger().write("[!] Paired with %s" % mac, tag="BTCTL")
-				break
 			elif "Failed to pair" in out:
 				Logger().write("[!] Failed to pair with %s" % mac, tag="BTCTL")
 				self.remove(mac)
 				return False
-			sleep(1)
+			Logger().write("[!] Retrying pair with %s" % mac, tag="BTCTL")
 
+		Logger().write("[!] Paired with %s" % mac, tag="BTCTL")
 		return True
 
 	def paired(self):
@@ -153,3 +151,6 @@ class BTCtl:
 		run("sudo bluetoothctl --timeout 10 scan on")
 		# get list of available devices
 		return self.devices()
+
+if __name__ == "__main__":
+	print("lol")

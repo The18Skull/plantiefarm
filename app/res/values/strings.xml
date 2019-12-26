@@ -1,3 +1,30 @@
 <resources>
-	<string name="app_name">Plant Farm</string>
+	<string name="app_name">Smart Farm</string>
+	<string name="text_none">None</string>
+
+	<string name="button_refresh_label">Refresh</string>
+	<string name="button_choose_device_label">Choose</string>
+	<string name="button_add_device_label">Add</string>
+	<string name="button_remove_device_label">Remove</string>
+	<string name="button_scan_devices_label">Scan</string>
+	<string name="button_get_measurements_label">Refresh</string>
+	<string name="button_get_statistics_label">Stat</string>
+	<string name="button_do_watering_label">Water</string>
+
+	<string name="text_ip_label">IP</string>
+	<string name="text_current_device_label">Device</string>
+	<string name="text_humidity_label">Humidity</string>
+	<string name="text_light_label">Light</string>
+	<string name="text_temperature_label">Temperature</string>
+	<string name="text_water_label">Water</string>
 </resources>
+<!--
+	<string name="button_refresh_label">Обновить</string>
+	<string name="button_choose_device_label">Выбрать другое устройство</string>
+	<string name="button_add_device_label">Добавить устройство</string>
+	<string name="button_remove_device_label">Удалить устройство</string>
+	<string name="button_scan_devices_label">Поиск устройств</string>
+	<string name="button_get_measurements_label">Обновить показания</string>
+	<string name="button_get_statistics_label">Получить статистику</string>
+	<string name="button_do_watering_label">Выполнить поливку</string>
+-->
